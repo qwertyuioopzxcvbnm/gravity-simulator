@@ -496,7 +496,7 @@ def draw_help_overlay(surface):
             ("Click + Drag", "Add planet with velocity"),
             ("", "  (drag direction = velocity)"),
             ("", "  (hold longer = more mass)"),
-            ("Shift + Click", "Add stationary Sun"),
+            ("Shift + Drag", "Add Sun with velocity"),
             ("Scroll", "Zoom in / out"),
             ("Middle Drag", "Pan camera"),
         ]),
@@ -648,25 +648,29 @@ def draw_hud(surface, objects, paused, speed_mult, buttons, show_trails, show_gr
         info_y += 20
 
 
-def draw_velocity_preview(surface, start_pos, end_pos, camera, mass_multiplier=1):
+def draw_velocity_preview(surface, start_pos, end_pos, camera, mass_multiplier=1, is_sun=False):
     """Draw velocity vector preview when adding new object"""
-    pygame.draw.line(surface, (100, 255, 100), start_pos, end_pos, 2)
+    color = (255, 220, 50) if is_sun else (100, 255, 100)
+    pygame.draw.line(surface, color, start_pos, end_pos, 2)
     # Draw arrowhead
     angle = math.atan2(end_pos[1] - start_pos[1], end_pos[0] - start_pos[0])
     arrow_len = 10
     for offset in [2.5, -2.5]:
         ax = end_pos[0] - arrow_len * math.cos(angle + offset)
         ay = end_pos[1] - arrow_len * math.sin(angle + offset)
-        pygame.draw.line(surface, (100, 255, 100), end_pos, (ax, ay), 2)
+        pygame.draw.line(surface, color, end_pos, (ax, ay), 2)
 
     # Show velocity magnitude in km/s (1 pixel drag = 1 km/s)
     dx = end_pos[0] - start_pos[0]
     dy = end_pos[1] - start_pos[1]
     vel_kms = math.sqrt(dx**2 + dy**2)  # km/s
-    vel_text = font.render(f"v={vel_kms:.1f} km/s", True, (100, 255, 100))
+    vel_text = font.render(f"v={vel_kms:.1f} km/s", True, color)
     surface.blit(vel_text, (end_pos[0] + 10, end_pos[1]))
-    # Show mass (increases while holding)
-    mass_text = font.render(f"m={mass_multiplier} Earths", True, (255, 200, 100))
+    # Show mass info
+    if is_sun:
+        mass_text = font.render("Sun (1 Solar Mass)", True, (255, 220, 50))
+    else:
+        mass_text = font.render(f"m={mass_multiplier} Earths", True, (255, 200, 100))
     surface.blit(mass_text, (end_pos[0] + 10, end_pos[1] + 18))
 
 
@@ -696,6 +700,7 @@ async def main():
     paused = False
     speed_mult = 0.5  # Start at 0.5x speed for stability
     adding_object = False
+    adding_sun = False  # Track if shift was held when starting drag
     add_start_pos = None
     add_start_time = None
     show_help = False
@@ -779,25 +784,12 @@ async def main():
                     elif help_button.is_clicked(mouse_pos, True):
                         show_help = not show_help
                     else:
-                        # Shift+click instantly places a Sun
+                        # Start drag - check if shift is held for Sun placement
                         keys = pygame.key.get_pressed()
-                        if keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]:
-                            screen_x, screen_y = camera.screen_to_world(*mouse_pos)
-                            wx = screen_x * METERS_PER_PIXEL
-                            wy = screen_y * METERS_PER_PIXEL
-                            sun = Object(
-                                position=(wx, wy),
-                                mass=SOLAR_MASS,
-                                velocity=(0, 0),
-                                color=(255, 220, 50),
-                                name=f"Sun {len([o for o in objects if 'Sun' in o.name]) + 1}",
-                                display_radius=15
-                            )
-                            objects.append(sun)
-                        else:
-                            adding_object = True
-                            add_start_pos = mouse_pos
-                            add_start_time = pygame.time.get_ticks()
+                        adding_object = True
+                        adding_sun = keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]
+                        add_start_pos = mouse_pos
+                        add_start_time = pygame.time.get_ticks()
                 elif event.button == 2:  # Middle mouse button - pan
                     panning = True
                     pan_start = mouse_pos
@@ -822,24 +814,37 @@ async def main():
                     velocity_scale = 1000  # m/s per pixel of drag
                     dx = (mouse_pos[0] - add_start_pos[0]) * velocity_scale
                     dy = (mouse_pos[1] - add_start_pos[1]) * velocity_scale
-                    # Calculate mass based on hold duration (1 Earth mass per 100ms)
-                    hold_time = pygame.time.get_ticks() - add_start_time
-                    mass_multiplier = max(1, hold_time // 100)
-                    mass = EARTH_MASS * mass_multiplier
-                    color = (
-                        random.randint(150, 255),
-                        random.randint(150, 255),
-                        random.randint(150, 255),
-                    )
-                    new_obj = Object(
-                        position=(wx, wy),
-                        mass=mass,
-                        velocity=(dx, dy),
-                        color=color,
-                        name=f"New {len(objects)+1}",
-                    )
+
+                    if adding_sun:
+                        # Create a Sun with the dragged velocity
+                        new_obj = Object(
+                            position=(wx, wy),
+                            mass=SOLAR_MASS,
+                            velocity=(dx, dy),
+                            color=(255, 220, 50),
+                            name=f"Sun {len([o for o in objects if 'Sun' in o.name]) + 1}",
+                            display_radius=15
+                        )
+                    else:
+                        # Calculate mass based on hold duration (1 Earth mass per 100ms)
+                        hold_time = pygame.time.get_ticks() - add_start_time
+                        mass_multiplier = max(1, hold_time // 100)
+                        mass = EARTH_MASS * mass_multiplier
+                        color = (
+                            random.randint(150, 255),
+                            random.randint(150, 255),
+                            random.randint(150, 255),
+                        )
+                        new_obj = Object(
+                            position=(wx, wy),
+                            mass=mass,
+                            velocity=(dx, dy),
+                            color=color,
+                            name=f"New {len(objects)+1}",
+                        )
                     objects.append(new_obj)
                     add_start_time = None
+                    adding_sun = False
                 elif event.button == 2:  # Middle mouse button release
                     panning = False
                     pan_start = None
@@ -904,12 +909,13 @@ async def main():
         if adding_object and add_start_pos:
             hold_time = pygame.time.get_ticks() - add_start_time
             mass_mult = max(1, hold_time // 100)
-            draw_velocity_preview(screen, add_start_pos, mouse_pos, camera, mass_mult)
+            draw_velocity_preview(screen, add_start_pos, mouse_pos, camera, mass_mult, adding_sun)
             wx, wy = camera.screen_to_world(*add_start_pos)
             sx, sy = camera.world_to_screen(wx, wy)
-            # Circle size grows with mass
-            preview_radius = min(50, 10 + mass_mult // 2)
-            pygame.draw.circle(screen, (100, 255, 100), (int(sx), int(sy)), preview_radius, 1)
+            # Circle size: fixed for sun, grows with mass for planets
+            preview_color = (255, 220, 50) if adding_sun else (100, 255, 100)
+            preview_radius = 15 if adding_sun else min(50, 10 + mass_mult // 2)
+            pygame.draw.circle(screen, preview_color, (int(sx), int(sy)), preview_radius, 1)
 
         draw_hud(screen, objects, paused, speed_mult, buttons, show_trails, show_grid, zoom_level)
 
