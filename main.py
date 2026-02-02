@@ -5,21 +5,12 @@ import asyncio
 
 pygame.init()
 
-# Screen setup - detect browser dimensions for web version
-try:
-    import platform as plat
-    if hasattr(plat, 'window'):
-        WIDTH = plat.window.innerWidth
-        HEIGHT = plat.window.innerHeight
-    else:
-        WIDTH, HEIGHT = 1200, 800
-except:
-    WIDTH, HEIGHT = 1200, 800
-
+# Screen setup
+WIDTH, HEIGHT = 1200, 800
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Gravity Simulator")
 
-# Actual physical constants (SI units)
+# Constants
 G = 6.67430e-11  # Gravitational constant (m³/(kg·s²))
 C = 299792458  # Speed of light (m/s)
 C_SQUARED = C ** 2  # Speed of light squared (m²/s²)
@@ -274,14 +265,14 @@ def create_binary_system(center_x, center_y):
     """Create a stable binary star system using real physics
 
     Two sun-like stars orbiting their common center of mass.
-    Separation ~0.5 AU for a tight binary system.
+    Separation ~1 AU for a tight binary system.
     """
     # Convert screen center to world coordinates (meters)
     world_center_x = center_x * METERS_PER_PIXEL
     world_center_y = center_y * METERS_PER_PIXEL
 
     star_mass = 1.0 * SOLAR_MASS  # 1 solar mass each
-    separation = 0.5 * AU  # 0.5 AU between stars
+    separation = 1 * AU  # 1 AU between stars
 
     # Orbital velocity for binary system with equal masses:
     # Each star orbits at r = separation/2 from center of mass
@@ -505,7 +496,7 @@ def draw_help_overlay(surface):
             ("Click + Drag", "Add planet with velocity"),
             ("", "  (drag direction = velocity)"),
             ("", "  (hold longer = more mass)"),
-            ("Shift + Drag", "Add Sun with velocity"),
+            ("Shift + Click", "Add stationary Sun"),
             ("Scroll", "Zoom in / out"),
             ("Middle Drag", "Pan camera"),
         ]),
@@ -657,29 +648,25 @@ def draw_hud(surface, objects, paused, speed_mult, buttons, show_trails, show_gr
         info_y += 20
 
 
-def draw_velocity_preview(surface, start_pos, end_pos, camera, mass_multiplier=1, is_sun=False):
+def draw_velocity_preview(surface, start_pos, end_pos, camera, mass_multiplier=1):
     """Draw velocity vector preview when adding new object"""
-    color = (255, 220, 50) if is_sun else (100, 255, 100)
-    pygame.draw.line(surface, color, start_pos, end_pos, 2)
+    pygame.draw.line(surface, (100, 255, 100), start_pos, end_pos, 2)
     # Draw arrowhead
     angle = math.atan2(end_pos[1] - start_pos[1], end_pos[0] - start_pos[0])
     arrow_len = 10
     for offset in [2.5, -2.5]:
         ax = end_pos[0] - arrow_len * math.cos(angle + offset)
         ay = end_pos[1] - arrow_len * math.sin(angle + offset)
-        pygame.draw.line(surface, color, end_pos, (ax, ay), 2)
+        pygame.draw.line(surface, (100, 255, 100), end_pos, (ax, ay), 2)
 
     # Show velocity magnitude in km/s (1 pixel drag = 1 km/s)
     dx = end_pos[0] - start_pos[0]
     dy = end_pos[1] - start_pos[1]
     vel_kms = math.sqrt(dx**2 + dy**2)  # km/s
-    vel_text = font.render(f"v={vel_kms:.1f} km/s", True, color)
+    vel_text = font.render(f"v={vel_kms:.1f} km/s", True, (100, 255, 100))
     surface.blit(vel_text, (end_pos[0] + 10, end_pos[1]))
-    # Show mass info
-    if is_sun:
-        mass_text = font.render("Sun (1 Solar Mass)", True, (255, 220, 50))
-    else:
-        mass_text = font.render(f"m={mass_multiplier} Earths", True, (255, 200, 100))
+    # Show mass (increases while holding)
+    mass_text = font.render(f"m={mass_multiplier} Earths", True, (255, 200, 100))
     surface.blit(mass_text, (end_pos[0] + 10, end_pos[1] + 18))
 
 
@@ -918,13 +905,12 @@ async def main():
         if adding_object and add_start_pos:
             hold_time = pygame.time.get_ticks() - add_start_time
             mass_mult = max(1, hold_time // 100)
-            draw_velocity_preview(screen, add_start_pos, mouse_pos, camera, mass_mult, adding_sun)
+            draw_velocity_preview(screen, add_start_pos, mouse_pos, camera, mass_mult)
             wx, wy = camera.screen_to_world(*add_start_pos)
             sx, sy = camera.world_to_screen(wx, wy)
-            # Circle size: fixed for sun, grows with mass for planets
-            preview_color = (255, 220, 50) if adding_sun else (100, 255, 100)
-            preview_radius = 15 if adding_sun else min(50, 10 + mass_mult // 2)
-            pygame.draw.circle(screen, preview_color, (int(sx), int(sy)), preview_radius, 1)
+            # Circle size grows with mass
+            preview_radius = min(50, 10 + mass_mult // 2)
+            pygame.draw.circle(screen, (100, 255, 100), (int(sx), int(sy)), preview_radius, 1)
 
         draw_hud(screen, objects, paused, speed_mult, buttons, show_trails, show_grid, zoom_level)
 
