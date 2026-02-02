@@ -5,8 +5,17 @@ import asyncio
 
 pygame.init()
 
-# Screen setup
-WIDTH, HEIGHT = 1200, 800
+# Screen setup - detect browser dimensions for web version
+try:
+    import platform as plat
+    if hasattr(plat, 'window'):
+        WIDTH = plat.window.innerWidth
+        HEIGHT = plat.window.innerHeight
+    else:
+        WIDTH, HEIGHT = 1200, 800
+except:
+    WIDTH, HEIGHT = 1200, 800
+
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Gravity Simulator")
 

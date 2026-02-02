@@ -15,9 +15,9 @@ Loading physics from physics.apk
 """)
 
 
-# screen pixels (real, hardware)
-WIDTH=1200  # Match game dimensions
-HEIGHT=800  # Match game dimensions
+# screen pixels (real, hardware) - use full viewport
+WIDTH=platform.window.innerWidth
+HEIGHT=platform.window.innerHeight
 
 # reference/idealized screen pixels
 REFX = 1980
@@ -281,6 +281,8 @@ config = {
             position: absolute;
             top: 0;
             left: 0;
+            width: 100vw;
+            height: 100vh;
             image-rendering: crisp-edges;
             image-rendering: pixelated;
         }
@@ -341,10 +343,19 @@ config = {
 
 
     <canvas class="emscripten" id="canvas"
-width="1200"
-height="800"
     oncontextmenu="event.preventDefault()" tabindex=1>
     </canvas>
+
+    <script>
+    // Set canvas to full viewport size
+    var canvas = document.getElementById('canvas');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    window.addEventListener('resize', function() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    });
+    </script>
 
     <div id=html></div>
 
